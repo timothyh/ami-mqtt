@@ -1,0 +1,21 @@
+{
+  "name": "ami-mqtt",
+  "version": "0.0.1",
+  "description": "Asterisk AMI to MQTT Gateway",
+  "main": "ami-mqtt.js",
+  "dependencies": {
+    "mqtt": "^2.5.0",
+    "nami": "^0.7.2"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "asterisk",
+    "ami",
+    "mqtt"
+  ],
+  "author": "Tim Hunt",
+  "license": "ISC"
+}
