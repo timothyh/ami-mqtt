@@ -122,7 +122,7 @@ nami.on('namiEvent', function(event) {
     delete event.EOL
     console.log(util.inspect(event))
 
-    // Process New incoming call
+    // Process New incoming call on Trunk
     // Trunk incoming
     if (event.event === 'NewConnectedLine' &&
         event.channelstatedesc === 'Ring' &&
@@ -134,7 +134,7 @@ nami.on('namiEvent', function(event) {
             to_num: event.exten,
             from_num: event.calleridnum === 'Unavailable' ? '' : event.calleridnum,
             from_name: event.calleridname.replace(/[_\s]+/g, ' '),
-            state: event.channelstatedesc,
+            state: 'ring',
             timestamp: Date(),
         }
         calls[event.linkedid] = tmp;
@@ -146,12 +146,13 @@ nami.on('namiEvent', function(event) {
         callers[event.calleridnum] &&
         calls[event.linkedid] &&
         event.destchannelstatedesc === 'Up') {
+	calls[event.linkedid].exten = event.destcalleridnum
         var tmp = calls[event.linkedid]
         var trunk = tmp.trunk.toLowerCase()
         tmp.state = 'answer'
         tmp.timestamp = Date()
 
-        client.publish(mqtt_conf.ext_prefix + '/' + ext, JSON.stringify(tmp))
+        client.publish(mqtt_conf.trunk_prefix + '/' + trunk, JSON.stringify(tmp))
     }
     // Trunk Hangup
     else if (event.event === 'Hangup' &&
@@ -164,24 +165,30 @@ nami.on('namiEvent', function(event) {
         tmp.timestamp = Date()
 
         client.publish(mqtt_conf.trunk_prefix + '/' + trunk, JSON.stringify(tmp))
-
-        delete calls[event.linkedid]
     }
+
+    // Internal/Extension processing
     // Ring internal extensions
-    else if (event.event === 'DialBegin' &&
+    if (event.event === 'DialBegin' &&
         event.channelstatedesc === 'Ring' &&
-        calls[event.linkedid] &&
         event.destcalleridnum) {
         var ext = event.destcalleridnum
         var tmp = {
             to_num: event.destcalleridnum,
             from_num: event.calleridnum === 'Unavailable' ? '' : event.calleridnum,
-            // from_name: callers[event.calleridnum] ? callers[event.calleridnum] : event.calleridname.replace( /[_\s]+/g, ' ' ),
             from_name: calls[event.linkedid] ? calls[event.linkedid].from_name : event.calleridname.replace(/[_\s]+/g, ' '),
             state: 'ring',
             timestamp: Date(),
         }
-        // console.log(mqtt_conf.ext_prefix + '/' + ext + ": " + JSON.stringify(tmp))
+        // Was this an internal call?
+        if (!calls[event.linkedid]) {
+	    tmp.exten = ext
+            calls[event.linkedid] = tmp;
+        }
+
+	if ( tmp.from_num && !calls[event.linkedid].trunk ) {
+		client.publish(mqtt_conf.ext_prefix + '/' + tmp.from_num , JSON.stringify(tmp))
+	}
         client.publish(mqtt_conf.ext_prefix + '/' + ext, JSON.stringify(tmp))
     }
     // Extension Answer
@@ -192,29 +199,35 @@ nami.on('namiEvent', function(event) {
         var tmp = {
             to_num: event.destcalleridnum,
             from_num: event.calleridnum === 'Unavailable' ? '' : event.calleridnum,
-            // from_name: callers[event.calleridnum] ? callers[event.calleridnum] : event.calleridname.replace( /[_\s]+/g, ' ' ),
             from_name: calls[event.linkedid] ? calls[event.linkedid].from_name : event.calleridname.replace(/[_\s]+/g, ' '),
             state: 'answer',
             timestamp: Date(),
         }
-        // console.log(mqtt_conf.ext_prefix + '/' + ext + ": " + JSON.stringify(tmp))
+
+	if ( tmp.from_num && !calls[event.linkedid].trunk ) {
+		client.publish(mqtt_conf.ext_prefix + '/' + tmp.from_num , JSON.stringify(tmp))
+	}
         client.publish(mqtt_conf.ext_prefix + '/' + ext, JSON.stringify(tmp))
     }
     // Extension Hangup
     else if (event.event === 'Hangup' &&
         event.channelstatedesc === 'Up' &&
         calls[event.linkedid] &&
+	calls[event.linkedid].exten == event.calleridnum &&
         event.calleridnum) {
         var ext = event.calleridnum
         var tmp = {
             to_num: event.calleridnum,
             from_num: event.connectedlinenum === 'Unavailable' ? '' : event.connectedlinenum,
-            // from_name: callers[event.connectedlinenum] ? callers[event.connectedlinenum] : event.connectedlinename.replace( /[_\s]+/g, ' ' ),
+
             from_name: calls[event.linkedid] ? calls[event.linkedid].from_name : event.calleridname.replace(/[_\s]+/g, ' '),
             state: 'hangup',
             timestamp: Date(),
         }
-        // console.log(mqtt_conf.ext_prefix + '/' + ext + ": " + JSON.stringify(tmp))
+
+	if ( tmp.from_num && !calls[event.linkedid].trunk ) {
+		client.publish(mqtt_conf.ext_prefix + '/' + tmp.from_num , JSON.stringify(tmp))
+	}
         client.publish(mqtt_conf.ext_prefix + '/' + ext, JSON.stringify(tmp))
     }
 })
@@ -272,4 +285,3 @@ setInterval(function() {
 console.log("Starting")
 
 nami.open()
-
