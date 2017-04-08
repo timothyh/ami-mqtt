@@ -39,6 +39,8 @@ String.prototype.inList = function ( list ) {
     return ( list.indexOf( this.toString() ) != -1 )
 }
 
+require('log-timestamp')(function() { return new Date().toString() + ": %s" });
+
 var namiLib = require( "nami" )
 var mqtt = require( "mqtt" )
 
@@ -75,16 +77,16 @@ var nami = new( namiLib.Nami )( ami_conf )
 nami.logLevel = 1
 
 nami.on('namiConnectionClose', function (data) {
-    console.log('Reconnecting...');
+    console.warn('Reconnecting to AMI...');
     setTimeout(function () { nami.open(); }, 5000);
 });
 
 nami.on('namiInvalidPeer', function (data) {
-        console.log("Invalid AMI Salute. Not an AMI?");
+        console.error("Invalid AMI Salute. Not an AMI?");
         process.exit(1);
 });
 nami.on('namiLoginIncorrect', function () {
-        console.log("Invalid Credentials");
+        console.error("Invalid AMI Credentials");
         process.exit(1);
 });
 nami.on( 'namiEvent', function ( event ) {
@@ -97,20 +99,22 @@ nami.on( 'namiEvent', function ( event ) {
         return
     }
 
-    var tmp = []
-    tmp[ 0 ] = event.event
-    tmp[ 1 ] = event.channelstatedesc
-    tmp[ 2 ] = event.channel.replace( /^[^\/]+\//, '' ).replace( /-[^-]+$/, '' )
-    tmp[ 3 ] = event.exten
-    tmp[ 4 ] = event.destexten
-    tmp[ 5 ] = event.calleridnum
-    tmp[ 6 ] = event.calleridname
-    tmp[ 7 ] = event.connectedlinenum
-    tmp[ 8 ] = event.connectedlinename
-    tmp[ 9 ] = event.destcalleridnum
-    tmp[ 10 ] = event.destcalleridname
+    // var tmp = []
+    // tmp[ 0 ] = event.event
+    // tmp[ 1 ] = event.channelstatedesc
+    // tmp[ 2 ] = event.channel.replace( /^[^\/]+\//, '' ).replace( /-[^-]+$/, '' )
+    // tmp[ 3 ] = event.exten
+    // tmp[ 4 ] = event.destexten
+    // tmp[ 5 ] = event.calleridnum
+    // tmp[ 6 ] = event.calleridname
+    // tmp[ 7 ] = event.connectedlinenum
+    // tmp[ 8 ] = event.connectedlinename
+    // tmp[ 9 ] = event.destcalleridnum
+    // tmp[ 10 ] = event.destcalleridname
 
-    // console.log( tmp.join( '|' ) )
+    delete event.lines
+    delete event.EOL
+    console.log( util.inspect(event) )
 
     // New incoming call
     if ( event.event === 'NewConnectedLine' &&
@@ -147,13 +151,13 @@ nami.on( 'namiEvent', function ( event ) {
 
 process.on( 'SIGTERM', function () {
     nami.close( function () {
-        console.log( "Exiting on SIGTERM" )
+        console.warn( "Exiting on SIGTERM" )
     } )
     process.exit( 1 )
 } )
 process.on( 'SIGINT', function () {
     nami.close( function () {
-        console.log( "Exiting on SIGINT" )
+        console.warn( "Exiting on SIGINT" )
     } )
     process.exit( 1 )
 } )
@@ -185,12 +189,12 @@ setInterval( function () {
 setInterval( function () {
     var ami_last = ( Date.now() - ami_activity ) / 1000.0
     if ( ami_last >= 90 ) {
-        console.log( "Exit due to AMI inactivity" )
+        console.warn( "Exit due to AMI inactivity" )
         process.exit( 10 )
     }
     var mqtt_last = ( Date.now() - mqtt_activity ) / 1000.0
     if ( mqtt_last >= 90 ) {
-        console.log( "Exit due to MQTT inactivity" )
+        console.warn( "Exit due to MQTT inactivity" )
         process.exit( 10 )
     }
 }, 10000 )
