@@ -1,0 +1,53 @@
+// JSON does not allow for comments so all comments will need to be removed
+//
+// JSON is also extremely picky about formatting so if problems check for
+// commas in in/appropriate places and that brackets and quotes all match up
+//
+// Regex's defined below should match entire string
+{
+// Connection information for Asterisk AMI interface
+"ami_conf": {
+    "host": "asterisk",
+    "port": 5038,
+    "username": "amiuser",
+    "secret": "yourpasswordhere"
+},
+// Connection information for MQTT Broker
+"mqtt_conf": {
+    "host": "localhost",
+    "port": "1883",
+    "username": "asterisk",
+    "keepalive": 60,
+    "password": "yourpasswordhere",
+    // Will be used for keepalive pings
+    "ping_topic": "pbx/_ping",
+    // Topic prefix for extension updates
+    "ext_prefix": "pbx/extension",
+    // Topic prefix for trunk updates
+    "trunk_prefix": "pbx/trunk"
+},
+// Define numbers associated with trunks
+// incoming and outgoing
+"trunks": {
+    "12125551212": "House",
+    "12125551213": "DID 1",
+    "12125551214": "DID 2",
+    "12135551212": "Work",
+    "17775551212": "House",
+    "441555121212": "DID Intl",
+    "6405": "DoorBell"
+},
+// Substitution for intl +
+"intl_prefix": "011",
+// Chars to remove from fron of numbers
+// Format is: pattern_to_match => # of chars to strip
+"prefix_strip": { "8[1-3].........*": 2 },
+// Chars to add at front of number
+// Format is pattern_to_match => String to add
+"prefix_add": { "[2-9].[1-9].......": "1" },
+// Define external numbers that don't match usual pattern
+"external": [ "[2-9]11", "958" ],
+// Defines pattern to match for internal numbers
+"internal": [ "..", "...." ]
+// Default is to treat as external number
+}

@@ -1,0 +1,16 @@
+[Unit]
+Description=Start Asterisk AMI to MQTT Gateway
+After=network.target
+
+[Service]
+User=tim
+ExecStart=/usr/bin/nodejs ./ami-mqtt.js
+ExecReload=/bin/kill $MAINPID
+WorkingDirectory=/opt/ami-mqtt
+Type=simple
+Restart=on-success
+SuccessExitStatus=10 SIGUSR1
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

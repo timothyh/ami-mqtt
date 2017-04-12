@@ -35,18 +35,77 @@
 // 
 //
 
+var util = require('util')
+var namiLib = require("nami")
+var mqtt = require("mqtt")
+
+var config = require('./config.json');
+
 String.prototype.inList = function(list) {
     return (list.indexOf(this.toString()) != -1)
+}
+
+// Normalize phone numbers => Country code + Number
+
+String.prototype.telnumClean = function() {
+    var num = this
+
+    // Replace international prefix
+    // Only meaningful on incoming calls
+    num = num.replace(/^\+/, config.intl_prefix)
+
+    // String internal prefixes
+    Object.keys(config.prefix_strip).forEach(function(key) {
+        if (num.match(RegExp('^' + key + '$'))) {
+            var value = config.prefix_strip[key]
+            num = num.substr(value)
+            return
+        }
+    })
+
+    // Add back any long distance prefix
+    Object.keys(config.prefix_add).forEach(function(key) {
+        if (num.match(RegExp('^' + key + '$'))) {
+            var value = config.prefix_add[key]
+            num = value + num
+            return
+        }
+    })
+    return num
+}
+
+// Is a phone number internal or external 
+
+var ext_re = ''
+var int_re = ''
+
+String.prototype.isInternal = function() {
+    if (!ext_re) {
+        ext_re = new RegExp('^(' + config.external.join('|') + ')$')
+    }
+    if (!int_re) {
+        int_re = new RegExp('^(' + config.internal.join('|') + ')$')
+    }
+
+    // Does it match external whitelist
+    if (this.match(ext_re)) {
+        return false
+    }
+    // Is it internal
+    if (this.match(int_re)) {
+        return true
+    }
+    // Default is assume external
+    return false
+}
+
+String.prototype.isExternal = function() {
+    return !this.isInternal()
 }
 
 require('log-timestamp')(function() {
     return new Date().toString() + ": %s"
 });
-
-var namiLib = require("nami")
-var mqtt = require("mqtt")
-
-var config = require('./config.json');
 
 var ami_conf = config.ami_conf
 
@@ -59,6 +118,8 @@ var trunks = config.trunks
 var callers = {}
 
 var calls = {}
+
+var max_internal = 4
 
 var ami_activity = Date.now()
 var mqtt_activity = Date.now()
@@ -141,12 +202,34 @@ nami.on('namiEvent', function(event) {
 
         client.publish(mqtt_conf.trunk_prefix + '/' + trunk, JSON.stringify(tmp))
     }
+    // Trunk outgoing
+    else if (event.event === 'DialBegin' &&
+        event.channelstatedesc === 'Ring' &&
+	event.destcalleridnum &&
+	event.destcalleridnum.isExternal() &&
+        trunks[event.calleridnum] ) {
+        var trunk = trunks[event.calleridnum].toLowerCase()
+        var tmp = {
+            trunk: trunks[event.calleridnum],
+            to_num: event.destcalleridnum,
+            from_num: event.calleridnum === 'Unavailable' ? '' : event.calleridnum,
+            from_name: calls[event.linkedid] ? calls[event.linkedid].from_name : event.calleridname.replace(/[_\s]+/g, ' '),
+            state: 'ring',
+            timestamp: Date(),
+        }
+
+        calls[event.linkedid] = tmp;
+
+        client.publish(mqtt_conf.trunk_prefix + '/' + trunk, JSON.stringify(tmp))
+    }
     // Trunk Answer
     else if (event.event === 'DialEnd' &&
-        callers[event.calleridnum] &&
+        ( callers[event.calleridnum] || trunks[event.calleridnum] ) &&
         calls[event.linkedid] &&
         event.destchannelstatedesc === 'Up') {
-	calls[event.linkedid].exten = event.destcalleridnum
+	if ( event.destcalleridnum.isInternal() ) {
+	    calls[event.linkedid].exten = event.destcalleridnum
+	}
         var tmp = calls[event.linkedid]
         var trunk = tmp.trunk.toLowerCase()
         tmp.state = 'answer'
@@ -158,7 +241,7 @@ nami.on('namiEvent', function(event) {
     else if (event.event === 'Hangup' &&
         event.channelstatedesc === 'Up' &&
         calls[event.linkedid] &&
-        callers[event.calleridnum]) {
+        ( callers[event.calleridnum] || trunks[event.calleridnum] ) ) {
         var tmp = calls[event.linkedid]
         var trunk = tmp.trunk.toLowerCase()
         tmp.state = 'hangup'
@@ -171,7 +254,8 @@ nami.on('namiEvent', function(event) {
     // Ring internal extensions
     if (event.event === 'DialBegin' &&
         event.channelstatedesc === 'Ring' &&
-        event.destcalleridnum) {
+        event.destcalleridnum &&
+	event.destcalleridnum.isInternal()) {
         var ext = event.destcalleridnum
         var tmp = {
             to_num: event.destcalleridnum,
@@ -194,6 +278,8 @@ nami.on('namiEvent', function(event) {
     // Extension Answer
     else if (event.event === 'DialEnd' &&
         calls[event.linkedid] &&
+        event.destcalleridnum &&
+	event.destcalleridnum.isInternal() &&
         event.destchannelstatedesc === 'Up') {
         var ext = event.destcalleridnum
         var tmp = {
@@ -214,7 +300,8 @@ nami.on('namiEvent', function(event) {
         event.channelstatedesc === 'Up' &&
         calls[event.linkedid] &&
 	calls[event.linkedid].exten == event.calleridnum &&
-        event.calleridnum) {
+        event.calleridnum &&
+        event.calleridnum.isInternal() ) {
         var ext = event.calleridnum
         var tmp = {
             to_num: event.calleridnum,

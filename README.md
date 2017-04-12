@@ -1,47 +1,25 @@
 # ami-mqtt
 Asterisk AMI to MQTT Gateway
 
+Uses Asterisk AMI to read event stream from Asterisk instance and generate
+status messages to forward to MQTT broker.
 
-Requires a config file - config.json
+Events tracked:
+* Incoming calls from trunks ring -> answer -> hangup
+* Outgoing calls on trunks from extensions
+* Extension activity for incoming, outgoing and extension to extension calls
 
-Sample below - Remember JSON doesn't allow comments
+Given the many ways Asterisk can be configured, extensions, trunks and external numbers
+are determined by pattern matching numbers. The patterns are defined in config.json.
 
-```json
-{
+Asterisk context information is ignored.
 
-// Connection information for Asterisk AMI
+Note that calls to pseudo phone extensions can be used to generate automation events.
 
-"ami_conf": {
-    "host": "astrisk.local",
-    "port": 1234,
-    "username": "asterisk",
-    "secret": "mypassword"
-},
+Status information is determined heuristically. Your mileage will vary.
 
-// Connection information for MQTT Broker
+Requires a config file - config.json - See config.json.sample
 
-"mqtt_conf": {
-    "host": "localhost",
-    "port": "1883",
-    "username": "mqttuser",
-    "keepalive": 60,
-    "password": "mypassword",
-// Topic used for Keepalive ping messages
-    "ping_topic": "pbx/_ping",
-// Topic used for messages relaed to extensions
-    "ext_prefix": "pbx/extension",
-// Topic used 
-    "trunk_prefix": "pbx/trunk"
-},
+Remember that comments will need to be removed and JSON is extremely picky
+about formatting.
 
-// Mapping of Incoming DID to friendly names
-
-"trunks": {
-    "6405": "House",
-    "12125551212": "House",
-    "12125551213": "Bert",
-    "12125551214": "Ernie",
-    "44171234567": "Cookie"
-}
-}
-```
