@@ -103,9 +103,16 @@ String.prototype.isExternal = function() {
     return !this.isInternal()
 }
 
-require('log-timestamp')(function() {
-    return new Date().toString() + ": %s"
-});
+// Not needed with systemd
+// require('log-timestamp')(function() {
+//     return new Date().toString() + ": %s"
+// });
+
+// require( "console-stamp" )( console, {
+//    formatter:function(){
+//        return new Error().stack + "\n"
+//    }
+// } );
 
 var ami_conf = config.ami_conf
 
@@ -148,6 +155,9 @@ nami.on('namiConnectionClose', function(data) {
     }, 5000);
 });
 
+nami.on('namiConnected', function(data) {
+    console.log("Connected to AMI")
+});
 nami.on('namiInvalidPeer', function(data) {
     console.error("Invalid AMI Salute. Not an AMI?");
     process.exit(1);
@@ -187,6 +197,7 @@ nami.on('namiEvent', function(event) {
     // Trunk incoming
     if (event.event === 'NewConnectedLine' &&
         event.channelstatedesc === 'Ring' &&
+	event.calleridnum.isExternal() &&
         trunks[event.exten]) {
         callers[event.calleridnum] = event.calleridname.replace(/[_\s]+/g, ' ')
         var trunk = trunks[event.exten].toLowerCase()
@@ -195,6 +206,7 @@ nami.on('namiEvent', function(event) {
             to_num: event.exten,
             from_num: event.calleridnum === 'Unavailable' ? '' : event.calleridnum,
             from_name: event.calleridname.replace(/[_\s]+/g, ' '),
+            direction: 'in',
             state: 'ring',
             timestamp: Date(),
         }
@@ -214,6 +226,7 @@ nami.on('namiEvent', function(event) {
             to_num: event.destcalleridnum,
             from_num: event.calleridnum === 'Unavailable' ? '' : event.calleridnum,
             from_name: calls[event.linkedid] ? calls[event.linkedid].from_name : event.calleridname.replace(/[_\s]+/g, ' '),
+            direction: 'out',
             state: 'ring',
             timestamp: Date(),
         }
