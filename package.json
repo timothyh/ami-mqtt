@@ -4,6 +4,7 @@
   "description": "Asterisk AMI to MQTT Gateway",
   "main": "ami-mqtt.js",
   "dependencies": {
+    "console-stamp": "^0.2.5",
     "mqtt": "^2.5.0",
     "nami": "^0.7.2"
   },
