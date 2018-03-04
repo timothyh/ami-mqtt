@@ -29,6 +29,7 @@
 // Define numbers associated with trunks
 // incoming and outgoing
 "trunks": {
+    "default": "House",
     "12125551212": "House",
     "12125551213": "DID 1",
     "12125551214": "DID 2",

@@ -48,18 +48,16 @@ String.prototype.inList = function(list) {
 // Normalize phone numbers => Country code + Number
 
 String.prototype.telnumClean = function() {
-    var num = this
 
     // Replace international prefix
     // Only meaningful on incoming calls
-    num = num.replace(/^\+/, config.intl_prefix)
+    var num = this.replace(/^\+/, config.intl_prefix)
 
-    // String internal prefixes
+    // Strip internal prefixes
     Object.keys(config.prefix_strip).forEach(function(key) {
         if (num.match(RegExp('^' + key + '$'))) {
             var value = config.prefix_strip[key]
             num = num.substr(value)
-            return
         }
     })
 
@@ -68,7 +66,6 @@ String.prototype.telnumClean = function() {
         if (num.match(RegExp('^' + key + '$'))) {
             var value = config.prefix_add[key]
             num = value + num
-            return
         }
     })
     return num
@@ -118,7 +115,7 @@ var ami_conf = config.ami_conf
 
 var mqtt_conf = config.mqtt_conf
 
-/* Incoming lines => event.exten */
+/* Incoming lines => event.connectedlinenum */
 
 var trunks = config.trunks
 
@@ -198,13 +195,13 @@ nami.on('namiEvent', function(event) {
     if (event.event === 'NewConnectedLine' &&
         event.channelstatedesc === 'Ring' &&
 	event.calleridnum.isExternal() &&
-        trunks[event.exten]) {
+        trunks[event.connectedlinenum]) {
         callers[event.calleridnum] = event.calleridname.replace(/[_\s]+/g, ' ')
-        var trunk = trunks[event.exten].toLowerCase()
+        var trunk = trunks[event.connectedlinenum].toLowerCase()
         var tmp = {
-            trunk: trunks[event.exten],
-            to_num: event.exten,
-            from_num: event.calleridnum === 'Unavailable' ? '' : event.calleridnum,
+            trunk: trunks[event.connectedlinenum],
+            to_num: event.connectedlinenum,
+            from_num: event.calleridnum === 'Unavailable' ? '' : event.calleridnum.telnumClean(),
             from_name: event.calleridname.replace(/[_\s]+/g, ' '),
             direction: 'in',
             state: 'ring',
@@ -223,7 +220,7 @@ nami.on('namiEvent', function(event) {
         var trunk = trunks[event.calleridnum].toLowerCase()
         var tmp = {
             trunk: trunks[event.calleridnum],
-            to_num: event.destcalleridnum,
+            to_num: event.destcalleridnum.telnumClean(),
             from_num: event.calleridnum === 'Unavailable' ? '' : event.calleridnum,
             from_name: calls[event.linkedid] ? calls[event.linkedid].from_name : event.calleridname.replace(/[_\s]+/g, ' '),
             direction: 'out',
@@ -272,7 +269,7 @@ nami.on('namiEvent', function(event) {
         var ext = event.destcalleridnum
         var tmp = {
             to_num: event.destcalleridnum,
-            from_num: event.calleridnum === 'Unavailable' ? '' : event.calleridnum,
+            from_num: event.calleridnum === 'Unavailable' ? '' : event.calleridnum.telnumClean(),
             from_name: calls[event.linkedid] ? calls[event.linkedid].from_name : event.calleridname.replace(/[_\s]+/g, ' '),
             state: 'ring',
             timestamp: Date(),
@@ -283,7 +280,7 @@ nami.on('namiEvent', function(event) {
             calls[event.linkedid] = tmp;
         }
 
-	if ( tmp.from_num && !calls[event.linkedid].trunk ) {
+	if ( tmp.from_num && tmp.from_num.isInternal() && !calls[event.linkedid].trunk ) {
 		client.publish(mqtt_conf.ext_prefix + '/' + tmp.from_num , JSON.stringify(tmp))
 	}
         client.publish(mqtt_conf.ext_prefix + '/' + ext, JSON.stringify(tmp))
@@ -297,7 +294,7 @@ nami.on('namiEvent', function(event) {
         var ext = event.destcalleridnum
         var tmp = {
             to_num: event.destcalleridnum,
-            from_num: event.calleridnum === 'Unavailable' ? '' : event.calleridnum,
+            from_num: event.calleridnum === 'Unavailable' ? '' : event.calleridnum.telnumClean(),
             from_name: calls[event.linkedid] ? calls[event.linkedid].from_name : event.calleridname.replace(/[_\s]+/g, ' '),
             state: 'answer',
             timestamp: Date(),
@@ -318,7 +315,7 @@ nami.on('namiEvent', function(event) {
         var ext = event.calleridnum
         var tmp = {
             to_num: event.calleridnum,
-            from_num: event.connectedlinenum === 'Unavailable' ? '' : event.connectedlinenum,
+            from_num: event.connectedlinenum === 'Unavailable' ? '' : event.connectedlinenum.telnumClean(),
 
             from_name: calls[event.linkedid] ? calls[event.linkedid].from_name : event.calleridname.replace(/[_\s]+/g, ' '),
             state: 'hangup',
